@@ -84,7 +84,7 @@ async function getCanvasAssignments() {
   }
 }
 
-// Format date nicely
+// Format date nicely in Mountain Time
 function formatDate(dateString) {
   const date = new Date(dateString);
   const options = {
@@ -93,7 +93,8 @@ function formatDate(dateString) {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true
+    hour12: true,
+    timeZone: 'America/Edmonton'
   };
   return date.toLocaleString('en-US', options);
 }
