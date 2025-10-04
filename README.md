@@ -10,6 +10,8 @@ A Discord bot that fetches and displays your upcoming Canvas assignments from th
 - ⏰ Displays formatted due dates and times
 - 🎨 Clean Discord embed formatting
 - ✅ Automatically sorts assignments by due date
+- 🔔 **Automatic daily reminders at 7 AM and 5 PM** (Mountain Time)
+- 💬 **Manual commands** - check assignments anytime with `!assignments`
 
 ## Prerequisites
 
@@ -38,6 +40,7 @@ This will install:
 - `discord.js` - Discord bot framework
 - `axios` - HTTP client for Canvas API
 - `dotenv` - Environment variable management
+- `node-cron` - Task scheduler for automatic reminders
 
 ### 3. Get Your Canvas API Token
 
@@ -83,11 +86,30 @@ DISCORD_TOKEN=your_discord_bot_token_here
 
 # Canvas API Token (from canvas.ualberta.ca Account Settings)
 CANVAS_TOKEN=your_canvas_api_token_here
+
+# Discord Channel ID where automatic reminders will be sent
+REMINDER_CHANNEL_ID=your_channel_id_here
 ```
 
 Replace the placeholder values with your actual tokens.
 
 ⚠️ **Important:** Never share your `.env` file or commit it to version control!
+
+### 7. Get Your Discord Channel ID (For Automatic Reminders)
+
+To enable automatic daily reminders, you need to get the Channel ID:
+
+**Enable Developer Mode:**
+1. Open Discord and click the gear icon (User Settings)
+2. Go to **Advanced** (under "App Settings")
+3. Turn on **Developer Mode**
+
+**Get the Channel ID:**
+1. Right-click the channel where you want automatic reminders
+2. Click **"Copy Channel ID"**
+3. Paste it into your `.env` file as `REMINDER_CHANNEL_ID`
+
+**Note:** If you don't want automatic reminders, you can skip this step or leave `REMINDER_CHANNEL_ID` empty. The manual `!assignments` command will still work.
 
 ## Usage
 
@@ -102,16 +124,36 @@ npm start
 You should see:
 ```
 ✅ Bot logged in as YourBotName#1234
+⏰ Automatic reminders enabled for channel: 123456789012345678
+📅 Reminders scheduled for 7:00 AM and 5:00 PM (Mountain Time)
 ```
 
 The bot is now online and ready to use!
 
+If you didn't set up `REMINDER_CHANNEL_ID`, you'll see:
+```
+✅ Bot logged in as YourBotName#1234
+⚠️ No REMINDER_CHANNEL_ID set. Automatic reminders disabled.
+💡 Add REMINDER_CHANNEL_ID to .env to enable automatic reminders.
+```
+
 ### Commands
 
+The bot supports both **automatic** and **manual** modes:
+
+#### Automatic Daily Reminders
+- **7:00 AM Mountain Time** - Morning reminder with upcoming assignments
+- **5:00 PM Mountain Time** - Evening reminder with updated assignments
+- Posts automatically to the channel specified in `REMINDER_CHANNEL_ID`
+- Includes "Automatic Daily Reminder" footer to distinguish from manual requests
+
+#### Manual Commands
 In any Discord channel where the bot has access, type:
 
-- `!assignments` - Fetch and display upcoming assignments
+- `!assignments` - Fetch and display upcoming assignments on demand
 - `!canvas` - Alternative command (same as !assignments)
+
+Both modes show the same information - assignments due within the next 3 days.
 
 ### Example Output
 
@@ -141,9 +183,43 @@ No assignments due in the next 3 days! 🎉
 
 ## Configuration
 
+### Changing the Reminder Times
+
+By default, reminders are sent at 7:00 AM and 5:00 PM Mountain Time. To change these times, edit the cron schedules in `index.js` around lines 168-180:
+
+```javascript
+// 7 AM MT - Change '0 7' to your desired time
+cron.schedule('0 7 * * *', () => {
+  sendScheduledReminder();
+}, {
+  timezone: 'America/Edmonton'
+});
+
+// 5 PM MT (17:00) - Change '0 17' to your desired time
+cron.schedule('0 17 * * *', () => {
+  sendScheduledReminder();
+}, {
+  timezone: 'America/Edmonton'
+});
+```
+
+**Cron format:** `minute hour * * *`
+- `0 7` = 7:00 AM
+- `0 17` = 5:00 PM (17:00)
+- `30 9` = 9:30 AM
+- `0 12` = 12:00 PM (noon)
+
+### Changing the Reminder Channel
+
+Simply update the `REMINDER_CHANNEL_ID` in your `.env` file with a different channel ID and restart the bot.
+
+### Disabling Automatic Reminders
+
+Remove or comment out the `REMINDER_CHANNEL_ID` line in your `.env` file. The manual commands will still work.
+
 ### Changing the Time Window
 
-By default, the bot shows assignments due within 3 days. To change this, edit line 27 in `index.js`:
+By default, the bot shows assignments due within 3 days. To change this, edit line 24 in `index.js`:
 
 ```javascript
 threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3); // Change 3 to your preferred number
@@ -151,13 +227,33 @@ threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3); // Change 3 to your pr
 
 ### Adding Custom Commands
 
-You can add more command triggers by modifying the message handler around line 111:
+You can add more command triggers by modifying the message handler around line 195:
 
 ```javascript
 if (message.content.toLowerCase() === '!assignments' || 
     message.content.toLowerCase() === '!canvas' ||
     message.content.toLowerCase() === '!homework') { // Add your custom command
 ```
+
+### Changing Timezone
+
+If you're not in Mountain Time, change the timezone in the cron schedules around lines 168-180:
+
+```javascript
+cron.schedule('0 7 * * *', () => {
+  sendScheduledReminder();
+}, {
+  timezone: 'America/Edmonton' // Change to your timezone
+});
+```
+
+Common timezones:
+- `America/Toronto` - Eastern Time
+- `America/New_York` - Eastern Time
+- `America/Chicago` - Central Time
+- `America/Denver` - Mountain Time
+- `America/Los_Angeles` - Pacific Time
+- `America/Vancouver` - Pacific Time
 
 ## Troubleshooting
 
@@ -196,6 +292,19 @@ if (message.content.toLowerCase() === '!assignments' ||
 1. Check that assignments have due dates set in Canvas
 2. Verify assignments are due within the 3-day window
 3. Make sure you're enrolled in the courses as a student
+
+### Automatic reminders not sending
+
+**Solution:**
+1. Verify `REMINDER_CHANNEL_ID` is set correctly in `.env`
+2. Make sure the bot has permission to send messages in that channel
+3. Check the bot console for error messages at 7 AM or 5 PM
+4. Verify your server time matches Mountain Time or adjust timezone in code
+5. Wait until the scheduled time - reminders only send at 7 AM and 5 PM
+
+### Wrong timezone for reminders
+
+**Solution:** Change the timezone in the cron schedules (see Configuration section above)
 
 ## Security Notes
 
@@ -249,11 +358,14 @@ This project is provided as-is for educational purposes. Feel free to modify and
 ## Contributing
 
 Feel free to fork and improve this bot! Some ideas for enhancements:
-- Add daily automatic reminders
+- ✅ Daily automatic reminders (implemented!)
+- Add reminders for specific assignment deadlines (e.g., 1 hour before)
 - Filter by specific courses
 - Show assignments due this week
 - Add task completion tracking
 - Support for multiple users with different Canvas tokens
+- Quiz and exam reminders
+- Grade notifications
 
 ---
 
